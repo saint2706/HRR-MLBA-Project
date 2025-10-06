@@ -16,7 +16,7 @@ The goal of this project is to analyze ball-by-ball IPL data to identify differe
 - **Player Archetyping**: Using K-Means clustering, players are grouped into distinct roles (e.g., "Power Hitter," "Death Specialist") based on their performance metrics.
 - **Impact Rating**: A machine learning model (XGBoost) is trained to predict match outcomes based on player performance. The model's feature importances, derived from SHAP analysis, are used to create a weighted "impact rating" for each player.
 - **Best XI Selection**: A data-driven algorithm selects a balanced and high-performing team of 11 players, considering both their impact ratings and their assigned roles.
-- **Interactive Dashboard**: A Streamlit application provides an interactive interface to explore the results, including player ratings, team compositions, and model insights.
+- **High-Quality Visualizations**: The project generates insightful and aesthetically pleasing plots for feature importance and player clusters.
 
 ## Methodology
 
@@ -58,14 +58,10 @@ To set up the project and run it on your local machine, follow these steps:
     pip install -r requirements.txt
     ```
 
-4.  **Download the dataset**:
-    This project uses the Kaggle IPL Complete Dataset (2008-2020), which can be found [here](https://www.kaggle.com/datasets/patrickb1912/ipl-complete-dataset-20082020). Make sure to download the `IPL.csv` file and place it in the root directory of the project.
+4.  **Download the Dataset with Git LFS**:
+    This project uses Git LFS to manage the large `IPL.csv` dataset. To download the dataset, please follow the instructions in the [**GIT_LFS_GUIDE.md**](./GIT_LFS_GUIDE.md).
 
 ## Usage
-
-The project can be run in two main ways: through the command-line interface for a full analysis or via the interactive Streamlit dashboard for exploration.
-
-### Command-Line Analysis
 
 To run the full end-to-end analysis pipeline, execute the `main.py` script from the root directory:
 ```bash
@@ -75,29 +71,22 @@ This will process the data, train the model, and print the model metrics and the
 ```bash
 python main.py --export-json results.json
 ```
-
-### Interactive Dashboard
-
-To launch the Streamlit dashboard and interactively explore the results, run the `streamlit_app.py` script:
-```bash
-streamlit run streamlit_app.py
-```
-This will open a new tab in your web browser with the dashboard, where you can filter by season and team, view player rankings, and explore model insights.
+The pipeline will also generate and save all visualizations in the `outputs/` directory.
 
 ## Project Structure
 
 The project is organized into several Python modules, each with a specific responsibility:
 
 -   `main.py`: The main script that orchestrates the entire data analysis pipeline.
--   `streamlit_app.py`: The Streamlit application for the interactive dashboard.
 -   `data_preprocessing.py`: Handles loading, cleaning, and preprocessing the raw data.
 -   `feature_engineering.py`: Calculates advanced metrics and composite indices.
 -   `model_training.py`: Trains the XGBoost model and evaluates its performance.
 -   `shap_analysis.py`: Performs SHAP analysis to interpret the model's predictions.
 -   `clustering_roles.py`: Groups players into archetypes using K-Means clustering.
 -   `team_selection.py`: Selects the "Best XI" team based on impact and roles.
--   `visualization.py`: Generates and saves plots for SHAP summaries and clusters.
+-   `visualization.py`: Generates and saves high-quality plots for feature importance and clusters.
 -   `requirements.txt`: Lists all the Python packages required to run the project.
--   `IPL.csv`: The raw dataset file (must be downloaded separately).
+-   `IPL.csv`: The raw dataset file (managed by Git LFS).
+-   `GIT_LFS_GUIDE.md`: A guide on how to set up and use Git LFS for this project.
 -   `outputs/`: The directory where all generated plots are saved.
 -   `NON_PROGRAMMER_GUIDE.md`: A guide to the project for a non-technical audience.
