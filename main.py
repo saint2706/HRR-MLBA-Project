@@ -4,7 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
-from typing import Dict, List
+from typing import Dict
 
 import pandas as pd
 
@@ -29,63 +29,12 @@ from feature_engineering import (
 )
 from model_training import generate_classification_report, train_impact_model
 from shap_analysis import compute_shap_values, summarise_shap_importance
+from team_selection import determine_primary_role, select_best_xi
 from visualization import plot_cluster_scatter, plot_shap_summary
 
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
-
-
-def _determine_primary_role(row: pd.Series, batting_roles: Dict[int, str], bowling_roles: Dict[int, str]) -> str:
-    has_batting = row.get("balls_faced", 0) > 30
-    has_bowling = row.get("balls_bowled", 0) > 18
-    batter_label = batting_roles.get(row.get("batter_cluster")) if row.get("batter_cluster") is not None else None
-    bowler_label = bowling_roles.get(row.get("bowler_cluster")) if row.get("bowler_cluster") is not None else None
-
-    if has_batting and has_bowling:
-        return "Allrounder"
-    if has_batting and batter_label:
-        return batter_label
-    if has_bowling and bowler_label:
-        return bowler_label
-    return batter_label or bowler_label or "Specialist"
-
-
-def select_best_xi(player_profiles: pd.DataFrame) -> pd.DataFrame:
-    """Select a balanced Best XI using impact ratings and role information."""
-
-    selected_players = []
-
-    def select_players(df: pd.DataFrame, count: int) -> List[str]:
-        chosen = []
-        for _, row in df.sort_values("impact_rating", ascending=False).iterrows():
-            if row["player"] in selected_players:
-                continue
-            selected_players.append(row["player"])
-            chosen.append(row["player"])
-            if len(chosen) == count:
-                break
-        return chosen
-
-    batting_roles = {"Power Hitter", "Anchor", "Accumulator", "Finisher"}
-    bowl_roles = {"Death Specialist", "Strike Bowler", "Powerplay Controller", "Middle Overs"}
-
-    batters = player_profiles[player_profiles["primary_role"].isin(batting_roles)]
-    select_players(batters, min(5, len(batters)))
-
-    allrounders = player_profiles[player_profiles["primary_role"] == "Allrounder"]
-    select_players(allrounders, min(2, len(allrounders)))
-
-    bowlers = player_profiles[player_profiles["primary_role"].isin(bowl_roles)]
-    select_players(bowlers, 11 - len(selected_players))
-
-    if len(selected_players) < 11:
-        remaining = player_profiles[~player_profiles["player"].isin(selected_players)]
-        select_players(remaining, 11 - len(selected_players))
-
-    return player_profiles[player_profiles["player"].isin(selected_players)].sort_values(
-        "impact_rating", ascending=False
-    )
 
 
 def main(data_path: str) -> Dict[str, object]:
@@ -178,7 +127,7 @@ def main(data_path: str) -> Dict[str, object]:
     player_profiles["bowler_role"] = player_profiles["bowler_cluster"].map(bowler_labels)
 
     player_profiles["primary_role"] = player_profiles.apply(
-        _determine_primary_role,
+        determine_primary_role,
         axis=1,
         batting_roles=batter_labels,
         bowling_roles=bowler_labels,
