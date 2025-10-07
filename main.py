@@ -26,7 +26,11 @@ from __future__ import annotations
 import argparse
 import json
 import logging
-from typing import Dict
+import shutil
+import subprocess
+import zipfile
+from pathlib import Path
+from typing import Dict, Iterable
 
 import pandas as pd
 
@@ -60,6 +64,121 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 
+def _read_first_line(path: Path) -> str:
+    try:
+        with path.open("r", encoding="utf-8") as fh:
+            return fh.readline().strip()
+    except OSError:
+        return ""
+
+
+def _looks_like_git_lfs_pointer(path: Path) -> bool:
+    return _read_first_line(path).lower().startswith("version https://git-lfs.github.com/spec/v1")
+
+
+def _run_command(command: Iterable[str], cwd: Path | None = None) -> subprocess.CompletedProcess[str]:
+    logger.info("Running command: %s", " ".join(command))
+    return subprocess.run(
+        list(command),
+        cwd=cwd,
+        check=False,
+        text=True,
+        capture_output=True,
+    )
+
+
+def _attempt_git_lfs_pull(dataset_path: Path) -> bool:
+    if shutil.which("git") is None:
+        logger.info("Skipping Git LFS pull because git is not available in PATH")
+        return False
+
+    repo_root = Path(__file__).resolve().parent
+    result = _run_command(["git", "lfs", "pull", "--include", dataset_path.name], cwd=repo_root)
+    if result.returncode != 0:
+        logger.warning("git lfs pull failed: %s", result.stderr.strip())
+        return False
+
+    if not dataset_path.exists():
+        logger.warning("git lfs pull completed but %s is still missing", dataset_path)
+        return False
+
+    if _looks_like_git_lfs_pointer(dataset_path):
+        logger.warning("git lfs pull produced a Git LFS pointer instead of the dataset")
+        return False
+
+    logger.info("Successfully fetched dataset via Git LFS")
+    return True
+
+
+def _extract_csv_from_zip(zip_path: Path, destination: Path, expected_name: str = "IPL.csv") -> bool:
+    try:
+        with zipfile.ZipFile(zip_path) as archive:
+            extract_dir = zip_path.with_suffix("")
+            archive.extractall(extract_dir)
+    except (OSError, zipfile.BadZipFile) as exc:
+        logger.warning("Failed to extract dataset zip %s: %s", zip_path, exc)
+        return False
+
+    for candidate in extract_dir.rglob(expected_name):
+        try:
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(candidate, destination)
+            logger.info("Copied %s to %s", candidate, destination)
+            return True
+        except OSError as exc:
+            logger.warning("Failed to copy dataset from %s: %s", candidate, exc)
+            return False
+
+    logger.warning("Could not find %s inside downloaded archive %s", expected_name, zip_path)
+    return False
+
+
+def _attempt_kaggle_download(dataset_path: Path) -> bool:
+    if shutil.which("curl") is None:
+        logger.info("Skipping Kaggle download because curl is not available in PATH")
+        return False
+
+    downloads_dir = Path.home() / "Downloads"
+    downloads_dir.mkdir(parents=True, exist_ok=True)
+    zip_path = downloads_dir / "ipl-dataset2008-2025.zip"
+
+    download_url = "https://www.kaggle.com/api/v1/datasets/download/chaitu20/ipl-dataset2008-2025"
+    result = _run_command(["curl", "-L", "-o", str(zip_path), download_url])
+    if result.returncode != 0:
+        logger.warning("curl download failed: %s", result.stderr.strip() or result.stdout.strip())
+        return False
+
+    if not zip_path.exists() or zip_path.stat().st_size == 0:
+        logger.warning("curl reported success but %s is missing or empty", zip_path)
+        return False
+
+    logger.info("Downloaded dataset archive to %s", zip_path)
+    return _extract_csv_from_zip(zip_path, dataset_path)
+
+
+def ensure_dataset_available(data_path: str) -> None:
+    dataset_path = Path(data_path)
+
+    if dataset_path.exists() and not _looks_like_git_lfs_pointer(dataset_path):
+        return
+
+    if dataset_path.exists():
+        logger.warning("Dataset at %s appears to be a Git LFS pointer; attempting to fetch real data", dataset_path)
+    else:
+        logger.warning("Dataset %s is missing; attempting to download", dataset_path)
+
+    if _attempt_git_lfs_pull(dataset_path):
+        return
+
+    logger.info("Falling back to Kaggle dataset download via curl")
+    if _attempt_kaggle_download(dataset_path):
+        return
+
+    raise RuntimeError(
+        "Unable to automatically fetch the dataset. Please install Git LFS and run `git lfs pull` or manually download the Kaggle archive."
+    )
+
+
 def main(data_path: str) -> Dict[str, object]:
     """
     Executes the end-to-end IPL player analysis pipeline.
@@ -82,6 +201,8 @@ def main(data_path: str) -> Dict[str, object]:
         - "plots": A dictionary of file paths for the generated visualizations.
         - "cluster_labels": A dictionary mapping cluster IDs to their descriptive names.
     """
+    ensure_dataset_available(data_path)
+
     logger.info("Starting pipeline with data path: %s", data_path)
 
     # Step 1: Load and preprocess the data
