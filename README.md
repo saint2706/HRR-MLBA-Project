@@ -7,6 +7,8 @@ This project is a data-driven analysis of the Indian Premier League (IPL), desig
 - [Methodology](#methodology)
 - [Installation](#installation)
 - [Usage](#usage)
+  - [Running the Streamlit Dashboard](#running-the-streamlit-dashboard)
+  - [Command-Line Pipeline](#command-line-pipeline)
 - [Project Structure](#project-structure)
 
 ## Project Overview
@@ -16,6 +18,7 @@ The goal of this project is to analyze ball-by-ball IPL data to identify differe
 - **Player Archetyping**: Using K-Means clustering, players are grouped into distinct roles (e.g., "Power Hitter," "Death Specialist") based on their performance metrics.
 - **Impact Rating**: A machine learning model (XGBoost) is trained to predict match outcomes based on player performance. The model's feature importances, derived from SHAP analysis, are used to create a weighted "impact rating" for each player.
 - **Best XI Selection**: A data-driven algorithm selects a balanced and high-performing team of 11 players, considering both their impact ratings and their assigned roles.
+- **Interactive Dashboard**: A Streamlit app consolidates the analysis into an interactive workspace with filters, charts, and tables tailored for analysts and coaches.
 - **High-Quality Visualizations**: The project generates insightful and aesthetically pleasing plots for feature importance and player clusters.
 
 ## Methodology
@@ -63,6 +66,18 @@ To set up the project and run it on your local machine, follow these steps:
 
 ## Usage
 
+### Running the Streamlit Dashboard
+
+Launch the interactive dashboard to explore the project outputs visually:
+
+```bash
+streamlit run streamlit_app.py
+```
+
+By default the app expects the Kaggle dataset at `IPL.csv` in the repository root. You can supply an alternative path using the sidebar configuration panel, which will trigger the cached pipeline to refresh automatically.
+
+### Command-Line Pipeline
+
 To run the full end-to-end analysis pipeline, execute the `main.py` script from the root directory:
 ```bash
 python main.py
@@ -85,6 +100,7 @@ The project is organized into several Python modules, each with a specific respo
 -   `clustering_roles.py`: Groups players into archetypes using K-Means clustering.
 -   `team_selection.py`: Selects the "Best XI" team based on impact and roles.
 -   `visualization.py`: Generates and saves high-quality plots for feature importance and clusters.
+-   `streamlit_app.py`: Hosts the interactive dashboard that wraps the entire analytics pipeline.
 -   `requirements.txt`: Lists all the Python packages required to run the project.
 -   `IPL.csv`: The raw dataset file (managed by Git LFS).
 -   `GIT_LFS_GUIDE.md`: A guide on how to set up and use Git LFS for this project.
