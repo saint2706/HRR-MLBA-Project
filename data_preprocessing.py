@@ -78,7 +78,7 @@ COLUMN_ALIASES = {
     "wicket_kind": {"wicket_kind", "dismissal_kind", "kind"},
     "fielder": {"fielder", "fielders_involved", "fielders"},
     "is_wicket": {"is_wicket", "wicket", "striker_out"},
-    "win_team": {"match_won_by", "winner", "winning_team", "match_winner"},
+    "win_team": {"win_team", "match_won_by", "winner", "winning_team", "match_winner"},
 }
 
 
