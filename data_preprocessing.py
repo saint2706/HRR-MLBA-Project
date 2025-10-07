@@ -126,6 +126,18 @@ def load_data(file_path: str, **read_csv_kwargs) -> pd.DataFrame:
     defaults = {"low_memory": False}
     defaults.update(read_csv_kwargs)
     logger.info("Loading dataset from %s", file_path)
+
+    try:
+        with open(file_path, "r", encoding="utf-8") as fh:
+            first_line = fh.readline().strip()
+    except OSError as exc:
+        raise ValueError(f"Failed to open dataset at {file_path!s}") from exc
+
+    if first_line.lower().startswith("version https://git-lfs.github.com/spec/v1"):
+        raise ValueError(
+            "Loaded file appears to be a Git LFS pointer. Fetch the full dataset with `git lfs pull` before running the pipeline."
+        )
+
     df = pd.read_csv(file_path, **defaults)
 
     # Remove any unnamed columns that may be present
@@ -266,7 +278,11 @@ def _infer_boolean_columns(df: pd.DataFrame) -> pd.DataFrame:
     """
     df = df.copy()
     runs_total_col = _select_first_available(df, COLUMN_ALIASES["runs_total"], "runs_total")
-    runs_total = pd.to_numeric(df.get(runs_total_col, 0), errors="coerce").fillna(0)
+    if runs_total_col and runs_total_col in df.columns:
+        raw_runs_total = df[runs_total_col]
+    else:
+        raw_runs_total = pd.Series(0, index=df.index, dtype="float64")
+    runs_total = pd.to_numeric(raw_runs_total, errors="coerce").fillna(0)
 
     # A "valid ball" is a delivery that counts towards the over (i.e., not a wide or no-ball)
     valid_col = "valid_ball" if "valid_ball" in df.columns else None
@@ -281,11 +297,16 @@ def _infer_boolean_columns(df: pd.DataFrame) -> pd.DataFrame:
 
     # A wicket is recorded if a player is dismissed
     wicket_flag_col = _select_first_available(df, COLUMN_ALIASES["is_wicket"], None)
+    player_out_col = _select_first_available(df, COLUMN_ALIASES["player_out"], None)
+
     if wicket_flag_col:
         df["is_wicket"] = df[wicket_flag_col].fillna(False).astype(bool)
     else:
         # If no explicit wicket flag exists, infer it from the 'player_out' column
-        df["is_wicket"] = df[_select_first_available(df, COLUMN_ALIASES["player_out"], "player_out")].notna()
+        if player_out_col and player_out_col in df.columns:
+            df["is_wicket"] = df[player_out_col].notna()
+        else:
+            df["is_wicket"] = pd.Series(False, index=df.index)
 
     return df
 
