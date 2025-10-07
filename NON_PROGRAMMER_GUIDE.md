@@ -43,16 +43,13 @@ The best way to explore this project is through the interactive dashboard. Hereâ
     This will open the dashboard in your web browser.
 
 2.  **Exploring the Dashboard**:
-    The dashboard is divided into several sections:
+    The dashboard is organized into four tabs, each focused on a different part of the story:
 
-    -   **Filters (on the left sidebar)**: Here, you can customize the data you're looking at. You can select specific seasons, teams, and even set a minimum number of balls a player must have played to be included in the analysis. This is great for comparing players across different years or teams.
+    -   **Overview**: Presents the latest model metrics, a data-driven "Best XI" table, and the top features influencing player impact. It's the quickest way to see the headline findings at a glance.
+    -   **Player Explorer**: Offers a searchable, filterable table of player profiles. Use the controls inside the "Filters" box to focus on specific seasons, teams, or player roles. You can also set minimum thresholds for balls faced or bowled to keep the results relevant. A counter shows how many players match your selections.
+    -   **Role Archetypes**: Displays interactive scatter plots for batter and bowler roles. Hover over any point to see the player's team and key statistics, or use Altair's built-in tools to zoom and pan.
+    -   **Diagnostics**: Shares the model's classification report so you can understand how well the underlying machine-learning model performed.
 
-    -   **Dataset at a Glance**: This section gives you a quick overview of the data being used, including the total number of matches, seasons, and teams.
-
-    -   **Player Impact Leaders**: This is where you can see the top-ranked players based on their **Impact Rating**. The bar chart shows the top 15 players, colored by their primary role. It's a great way to see who the most impactful players are and what roles they play.
-
-    -   **Suggested Best XI**: Based on the filters you've selected, this table shows you the ultimate "dream team" of 11 players. The team is selected to be both high-impact and well-balanced.
-
-    -   **Team and Phase Insights**: This section provides a broader view of the data. You can see which teams have the highest average impact ratings and how scoring rates change across the different phases of a match (Powerplay, Middle, Death).
+    The only required configuration is the dataset path in the sidebar. Leave it as the default (`IPL.csv`) unless you've stored the data elsewhere. Changing the path reruns the analysis automatically.
 
 We hope this guide helps you to explore and enjoy the insights from the IPL Impact Intelligence project!

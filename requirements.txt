@@ -1,9 +1,9 @@
-pandas
-numpy
-scikit-learn
-xgboost
-shap
-matplotlib
-seaborn
-streamlit
 altair
+matplotlib
+numpy
+pandas
+scikit-learn
+seaborn
+shap
+streamlit
+xgboost
