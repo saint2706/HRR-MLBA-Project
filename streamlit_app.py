@@ -80,6 +80,17 @@ def run_pipeline(data_path: str) -> Dict[str, Any]:
     features, metric_columns = compute_composite_indices(batting_metrics, bowling_metrics)
     model_df, feature_cols = build_model_matrix(features, metric_columns)
 
+    batting_with_index = batting_metrics.merge(
+        features[["match_id", "season", "team", "player", "batting_index"]],
+        on=["match_id", "season", "team", "player"],
+        how="left",
+    )
+    bowling_with_index = bowling_metrics.merge(
+        features[["match_id", "season", "team", "player", "bowling_index"]],
+        on=["match_id", "season", "team", "player"],
+        how="left",
+    )
+
     artifacts = train_impact_model(model_df, feature_cols)
     shap_frame, _ = compute_shap_values(artifacts.model, artifacts.X_train[feature_cols])
     shap_summary = summarise_shap_importance(shap_frame)
@@ -90,7 +101,7 @@ def run_pipeline(data_path: str) -> Dict[str, Any]:
 
     player_ratings = aggregate_player_ratings(model_df, shap_weights)
 
-    batter_base = batting_metrics[[
+    batter_base = batting_with_index[[
         "player",
         "team",
         "balls_faced",
@@ -104,7 +115,7 @@ def run_pipeline(data_path: str) -> Dict[str, Any]:
     batter_labels = label_batter_clusters(batter_result)
     batter_clustered["batter_role"] = batter_clustered["batter_cluster"].map(batter_labels)
 
-    bowler_base = bowling_metrics[[
+    bowler_base = bowling_with_index[[
         "player",
         "team",
         "balls_bowled",
@@ -128,10 +139,17 @@ def run_pipeline(data_path: str) -> Dict[str, Any]:
     )
 
     volume_stats = (
-        features[["player", "balls_faced", "balls_bowled"]]
-        .fillna(0)
+        batting_with_index[["player", "balls_faced"]]
         .groupby("player", as_index=False)
         .sum()
+        .merge(
+            bowling_with_index[["player", "balls_bowled"]]
+            .groupby("player", as_index=False)
+            .sum(),
+            on="player",
+            how="outer",
+        )
+        .fillna(0)
     )
 
     player_profiles = (

@@ -197,7 +197,19 @@ def compute_composite_indices(
     for column in metric_columns:
         if column not in features.columns:
             features[column] = 0.0
-    features = features.fillna(0)
+
+    # Only impute numeric columns to avoid upsetting categorical dtypes
+    numeric_columns = features.select_dtypes(include=["number"]).columns
+    if len(numeric_columns) > 0:
+        features[numeric_columns] = features[numeric_columns].fillna(0)
+
+    # Replace missing dictionary-like aggregates with an empty dict so downstream
+    # calculations (e.g., phase efficacy) can safely iterate over them.
+    for dict_col in ["phase_runs", "phase_balls"]:
+        if dict_col in features.columns:
+            features[dict_col] = features[dict_col].apply(
+                lambda value: value if isinstance(value, dict) else {}
+            )
 
     # Determine weights for each metric
     if weight_method == "correlation" and target_col in features.columns:
