@@ -1,0 +1,56 @@
+name: Retrain Impact Model
+
+on:
+  workflow_dispatch:
+    inputs:
+      data_path:
+        description: "Path to the IPL dataset relative to the repo root"
+        default: "IPL.csv"
+        required: false
+  schedule:
+    - cron: "0 6 * * 1"
+
+jobs:
+  retrain:
+    runs-on: ubuntu-latest
+    env:
+      KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
+      KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
+      KAGGLE_DATASET_URL: ${{ secrets.KAGGLE_DATASET_URL }}
+      DATA_PATH: ${{ github.event.inputs.data_path || 'IPL.csv' }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Install Git LFS
+        run: |
+          git lfs install
+          git lfs pull || true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Retrain and export best model
+        run: |
+          python retrain_best_model.py \
+            --data "$DATA_PATH" \
+            --output models/best_model.json \
+            --metadata models/best_model_metadata.json
+
+      - name: Upload model artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: best-model
+          path: |
+            models/best_model.json
+            models/best_model_metadata.json
+          if-no-files-found: error
