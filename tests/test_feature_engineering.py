@@ -1,11 +1,15 @@
 import sys
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
-from feature_engineering import compute_composite_indices
+from feature_engineering import (
+    aggregate_player_ratings,
+    compute_composite_indices,
+)
 
 
 def test_negative_correlation_metric_retains_weight():
@@ -57,3 +61,30 @@ def test_negative_correlation_metric_retains_weight():
     )
 
     assert (features["batting_index"] != 0).any()
+
+
+def test_aggregate_player_ratings_handles_zero_weights():
+    model_df = pd.DataFrame(
+        {
+            "match_id": [1, 2],
+            "player": ["Player"] * 2,
+            "team": ["A"] * 2,
+            "season": [2024] * 2,
+            "team_won": [1, 0],
+            "feature_one": [1.0, 2.0],
+            "feature_two": [3.0, 4.0],
+            "batting_index": [1.0, 1.0],
+            "bowling_index": [0.5, 0.5],
+        }
+    )
+
+    shap_weights = {"feature_one": 0.0, "feature_two": 0.0, "unused": 0.0}
+
+    player_ratings = aggregate_player_ratings(model_df, shap_weights)
+
+    # Impact scores should be the average of the two features with uniform weights.
+    expected_score = model_df[["feature_one", "feature_two"]].mean(axis=1).mean()
+    assert np.isclose(player_ratings["impact_score"].iat[0], expected_score)
+
+    # Ratings should remain finite even when supplied with zero weights.
+    assert np.isfinite(player_ratings["impact_rating"]).all()
