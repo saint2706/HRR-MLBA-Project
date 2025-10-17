@@ -166,8 +166,9 @@ def compute_composite_indices(
 
     This function creates `batting_index` and `bowling_index` by combining the
     respective metrics into a single score. The weights for this combination can
-    be determined by their correlation with the match outcome (`team_won`),
-    providing a data-driven way to value different aspects of performance.
+    be determined by the magnitude of each metric's correlation with the match
+    outcome (`team_won`), providing a data-driven way to value different aspects
+    of performance even when the relationship is negative.
 
     Args:
         batting_features: DataFrame with batting metrics.
@@ -222,8 +223,9 @@ def compute_composite_indices(
             else:
                 corr = features[column].corr(target)
                 correlations[column] = 0.0 if pd.isna(corr) else corr
-        # Use the absolute correlation as the weight (negative correlations are also important)
-        weights = np.array([max(correlations[col], 0) for col in metric_columns])
+        # Weight metrics by the magnitude of their relationship to the target so
+        # negatively correlated signals retain influence in the composite score.
+        weights = np.array([abs(correlations[col]) for col in metric_columns])
     else:
         # Default to uniform weights if correlation method is not used
         weights = np.ones(len(metric_columns))
