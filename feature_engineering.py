@@ -298,23 +298,38 @@ t    weighted average of a player's feature values, resulting in an "impact scor
     Returns:
         A DataFrame with aggregated player ratings per season.
     """
-    # Normalize SHAP weights to sum to 1
-    rating_weights = pd.Series(shap_weights)
-    rating_weights = rating_weights / rating_weights.sum()
+    # Normalize SHAP weights to sum to 1 and ensure they align with available features
+    rating_weights = pd.Series(shap_weights, dtype="float64").dropna()
+    feature_cols = [col for col in rating_weights.index if col in model_df.columns]
+
+    if not feature_cols:
+        numeric_cols = model_df.select_dtypes(include=["number"]).columns.tolist()
+        excluded_cols = {"match_id", "team_won", "season"}
+        feature_cols = [col for col in numeric_cols if col not in excluded_cols]
+        if not feature_cols:
+            raise ValueError("No feature columns available to aggregate player ratings.")
+        rating_weights = pd.Series(1.0 / len(feature_cols), index=feature_cols)
+    else:
+        rating_weights = rating_weights.loc[feature_cols]
+        weight_sum = rating_weights.sum()
+        if weight_sum == 0 or not np.isfinite(weight_sum):
+            rating_weights = pd.Series(1.0 / len(feature_cols), index=feature_cols)
+        else:
+            rating_weights = rating_weights / weight_sum
 
     # Calculate the weighted impact score for each player-match
-    feature_cols = [col for col in rating_weights.index if col in model_df.columns]
-    weighted_scores = model_df[feature_cols].mul(rating_weights[feature_cols], axis=1).sum(axis=1)
+    weighted_scores = model_df[feature_cols].mul(rating_weights, axis=1).sum(axis=1)
 
     # Aggregate scores at the player-team-season level
+    aggregations = {"impact_score": ("impact_score", "mean")}
+    for index_col in ["batting_index", "bowling_index"]:
+        if index_col in model_df.columns:
+            aggregations[index_col] = (index_col, "mean")
+
     player_ratings = (
         model_df.assign(impact_score=weighted_scores)
         .groupby(["player", "team", "season"], as_index=False)
-        .agg(
-            impact_score=("impact_score", "mean"),
-            batting_index=("batting_index", "mean"),
-            bowling_index=("bowling_index", "mean")
-        )
+        .agg(**aggregations)
     )
 
     # Normalize the impact score to a 0-100 rating
