@@ -26,6 +26,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import os
 import shutil
 import subprocess
 import zipfile
@@ -133,19 +134,77 @@ def _extract_csv_from_zip(zip_path: Path, destination: Path, expected_name: str 
     return False
 
 
-def _attempt_kaggle_download(dataset_path: Path) -> bool:
+def _attempt_kaggle_download(
+    dataset_path: Path,
+    *,
+    download_url: str | None = None,
+    downloads_dir: Path | None = None,
+) -> bool:
     if shutil.which("curl") is None:
         logger.info("Skipping Kaggle download because curl is not available in PATH")
         return False
 
-    downloads_dir = Path.home() / "Downloads"
-    downloads_dir.mkdir(parents=True, exist_ok=True)
-    zip_path = downloads_dir / "ipl-dataset2008-2025.zip"
+    if downloads_dir is None:
+        downloads_dir = os.environ.get("KAGGLE_DOWNLOAD_DIR")
+        downloads_dir = Path(downloads_dir) if downloads_dir else Path.home() / "Downloads"
+    elif isinstance(downloads_dir, str):
+        downloads_dir = Path(downloads_dir)
 
-    download_url = "https://www.kaggle.com/api/v1/datasets/download/chaitu20/ipl-dataset2008-2025"
-    result = _run_command(["curl", "-L", "-o", str(zip_path), download_url])
+    downloads_dir.mkdir(parents=True, exist_ok=True)
+    zip_path = downloads_dir / f"{dataset_path.stem}.zip"
+
+    download_url = (
+        download_url
+        or os.environ.get(
+            "KAGGLE_DATASET_URL",
+            "https://www.kaggle.com/api/v1/datasets/download/chaitu20/ipl-dataset2008-2025",
+        )
+    )
+
+    username = os.environ.get("KAGGLE_USERNAME")
+    key = os.environ.get("KAGGLE_KEY")
+
+    command: list[str] = [
+        "curl",
+        "--fail",
+        "--show-error",
+        "-L",
+        "-o",
+        str(zip_path),
+    ]
+
+    if username and key:
+        command.extend(
+            [
+                "-u",
+                f"{username}:{key}",
+                "--header",
+                f"X-Kaggle-User: {username}",
+                "--header",
+                f"X-Kaggle-Key: {key}",
+            ]
+        )
+    else:
+        command.append("--netrc")
+
+    command.extend(
+        [
+            "--header",
+            "User-Agent: kaggle-api/1.5.15",
+            "--header",
+            "Accept: application/json",
+            download_url,
+        ]
+    )
+
+    result = _run_command(command)
     if result.returncode != 0:
-        logger.warning("curl download failed: %s", result.stderr.strip() or result.stdout.strip())
+        message = result.stderr.strip() or result.stdout.strip() or "unknown error"
+        logger.warning(
+            "curl download failed with exit code %s: %s",
+            result.returncode,
+            message,
+        )
         return False
 
     if not zip_path.exists() or zip_path.stat().st_size == 0:
