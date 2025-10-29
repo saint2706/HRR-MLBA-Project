@@ -138,31 +138,22 @@ def run_pipeline(data_path: str) -> Dict[str, Any]:
         .agg(lambda s: s.mode().iloc[0] if not s.mode().empty else s.iloc[0])
     )
 
+    volume_group_cols = [col for col in ["player", "team", "season"] if col in batting_with_index.columns]
+    batting_volume = batting_with_index[volume_group_cols + ["balls_faced"]].groupby(volume_group_cols, as_index=False).sum()
+    bowling_volume = bowling_with_index[volume_group_cols + ["balls_bowled"]].groupby(volume_group_cols, as_index=False).sum()
     volume_stats = (
-        batting_with_index[["player", "balls_faced"]]
-        .groupby("player", as_index=False)
-        .sum()
-        .merge(
-            bowling_with_index[["player", "balls_bowled"]]
-            .groupby("player", as_index=False)
-            .sum(),
-            on="player",
-            how="outer",
-        )
-        .fillna(0)
+        batting_volume.merge(bowling_volume, on=volume_group_cols, how="outer").fillna(0)
     )
 
     player_profiles = (
-        player_ratings.merge(volume_stats, on="player", how="left")
+        player_ratings.merge(volume_stats, on=volume_group_cols, how="left")
         .merge(batter_mode.rename("batter_cluster"), on="player", how="left")
         .merge(bowler_mode.rename("bowler_cluster"), on="player", how="left")
     )
     player_profiles["balls_faced"] = player_profiles["balls_faced"].fillna(0)
     player_profiles["balls_bowled"] = player_profiles["balls_bowled"].fillna(0)
     player_profiles = (
-        player_profiles.sort_values("impact_rating", ascending=False)
-        .drop_duplicates("player")
-        .reset_index(drop=True)
+        player_profiles.sort_values("impact_rating", ascending=False).reset_index(drop=True)
     )
 
     player_profiles["batter_role"] = player_profiles["batter_cluster"].map(batter_labels)

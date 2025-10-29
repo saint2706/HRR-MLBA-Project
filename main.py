@@ -317,15 +317,15 @@ def main(data_path: str) -> Dict[str, object]:
     batter_mode = batter_clustered.groupby("player")["batter_cluster"].agg(lambda s: s.mode().iloc[0] if not s.mode().empty else s.iloc[0])
     bowler_mode = bowler_clustered.groupby("player")["bowler_cluster"].agg(lambda s: s.mode().iloc[0] if not s.mode().empty else s.iloc[0])
 
-    volume_stats = (
-        features[["player", "balls_faced", "balls_bowled"]]
-        .fillna(0)
-        .groupby("player", as_index=False)
-        .sum()
-    )
+    volume_group_cols = [col for col in ["player", "team", "season"] if col in features.columns]
+    volume_metric_cols = [col for col in ["balls_faced", "balls_bowled"] if col in features.columns]
+    volume_frame = features[volume_group_cols + volume_metric_cols].copy()
+    if volume_metric_cols:
+        volume_frame[volume_metric_cols] = volume_frame[volume_metric_cols].fillna(0)
+    volume_stats = volume_frame.groupby(volume_group_cols, as_index=False).sum()
 
     player_profiles = player_ratings.merge(
-        volume_stats, on="player", how="left"
+        volume_stats, on=volume_group_cols, how="left"
     ).merge(
         batter_mode.rename("batter_cluster"), on="player", how="left"
     ).merge(
@@ -335,11 +335,7 @@ def main(data_path: str) -> Dict[str, object]:
     # Clean up and finalize player profiles
     player_profiles["balls_faced"] = player_profiles["balls_faced"].fillna(0)
     player_profiles["balls_bowled"] = player_profiles["balls_bowled"].fillna(0)
-    player_profiles = (
-        player_profiles.sort_values("impact_rating", ascending=False)
-        .drop_duplicates("player")
-        .reset_index(drop=True)
-    )
+    player_profiles = player_profiles.sort_values("impact_rating", ascending=False).reset_index(drop=True)
 
     # Assign roles based on clusters
     player_profiles["batter_role"] = player_profiles["batter_cluster"].map(batter_labels)
