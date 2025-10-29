@@ -302,7 +302,10 @@ def main(data_path: str) -> Dict[str, object]:
     ]]
     batter_clustered, batter_result = cluster_batters(batter_base)
     batter_labels = label_batter_clusters(batter_result)
-    batter_clustered["batter_role"] = batter_clustered["batter_cluster"].map(batter_labels)
+    if batter_clustered.empty:
+        batter_clustered["batter_role"] = pd.Series(dtype="object", index=batter_clustered.index)
+    else:
+        batter_clustered["batter_role"] = batter_clustered["batter_cluster"].map(batter_labels)
 
     # Step 9: Cluster bowlers into archetypes
     bowler_base = bowling_metrics[[
@@ -311,11 +314,18 @@ def main(data_path: str) -> Dict[str, object]:
     ]]
     bowler_clustered, bowler_result = cluster_bowlers(bowler_base)
     bowler_labels = label_bowler_clusters(bowler_result)
-    bowler_clustered["bowler_role"] = bowler_clustered["bowler_cluster"].map(bowler_labels)
+    if bowler_clustered.empty:
+        bowler_clustered["bowler_role"] = pd.Series(dtype="object", index=bowler_clustered.index)
+    else:
+        bowler_clustered["bowler_role"] = bowler_clustered["bowler_cluster"].map(bowler_labels)
 
     # Step 10: Consolidate player profiles with cluster information
-    batter_mode = batter_clustered.groupby("player")["batter_cluster"].agg(lambda s: s.mode().iloc[0] if not s.mode().empty else s.iloc[0])
-    bowler_mode = bowler_clustered.groupby("player")["bowler_cluster"].agg(lambda s: s.mode().iloc[0] if not s.mode().empty else s.iloc[0])
+    batter_mode = batter_clustered.groupby("player")["batter_cluster"].agg(
+        lambda s: s.mode().iloc[0] if not s.mode().empty else s.iloc[0]
+    )
+    bowler_mode = bowler_clustered.groupby("player")["bowler_cluster"].agg(
+        lambda s: s.mode().iloc[0] if not s.mode().empty else s.iloc[0]
+    )
 
     volume_stats = (
         features[["player", "balls_faced", "balls_bowled"]]
@@ -353,17 +363,29 @@ def main(data_path: str) -> Dict[str, object]:
 
     # Step 12: Generate visualizations
     shap_plot_path = plot_shap_summary(shap_frame, shap_sample)
-    batter_cluster_plot = plot_cluster_scatter(
-        batter_clustered,
-        x_col="batting_strike_rate", y_col="boundary_percentage",
-        cluster_col="batter_role", title="Batter Archetypes",
-        output_filename="batter_clusters.png",
+    batter_cluster_plot = (
+        plot_cluster_scatter(
+            batter_clustered,
+            x_col="batting_strike_rate",
+            y_col="boundary_percentage",
+            cluster_col="batter_role",
+            title="Batter Archetypes",
+            output_filename="batter_clusters.png",
+        )
+        if not batter_clustered.empty
+        else None
     )
-    bowler_cluster_plot = plot_cluster_scatter(
-        bowler_clustered,
-        x_col="bowling_economy", y_col="bowling_strike_rate",
-        cluster_col="bowler_role", title="Bowler Archetypes",
-        output_filename="bowler_clusters.png",
+    bowler_cluster_plot = (
+        plot_cluster_scatter(
+            bowler_clustered,
+            x_col="bowling_economy",
+            y_col="bowling_strike_rate",
+            cluster_col="bowler_role",
+            title="Bowler Archetypes",
+            output_filename="bowler_clusters.png",
+        )
+        if not bowler_clustered.empty
+        else None
     )
 
     # Step 13: Generate a classification report for the model
