@@ -19,7 +19,7 @@ The key steps are:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -45,7 +45,7 @@ class ClusteringResult:
     labels: pd.Series
     centroids: pd.DataFrame
     feature_columns: List[str]
-    model: KMeans
+    model: Optional[KMeans]
 
 
 def _fit_kmeans(features: pd.DataFrame, n_clusters: int, random_state: int = 42) -> ClusteringResult:
@@ -65,6 +65,16 @@ def _fit_kmeans(features: pd.DataFrame, n_clusters: int, random_state: int = 42)
         A `ClusteringResult` object containing the cluster labels, centroids,
         feature columns, and the fitted model.
     """
+    if features.empty:
+        empty_labels = pd.Series(dtype="int64", index=features.index)
+        empty_centroids = pd.DataFrame(columns=features.columns, dtype=float)
+        return ClusteringResult(
+            labels=empty_labels,
+            centroids=empty_centroids,
+            feature_columns=list(features.columns),
+            model=None,
+        )
+
     # Standardize features to give them equal importance in the clustering algorithm
     scaler = StandardScaler()
     clean_features = features.fillna(0)
@@ -112,6 +122,8 @@ def cluster_batters(batting_df: pd.DataFrame, n_clusters: int = 4) -> Tuple[pd.D
     feature_cols = ["batting_strike_rate", "batting_average", "boundary_percentage", "dot_percentage", "batting_index"]
     available = batting_df.reindex(columns=feature_cols).fillna(0)
     result = _fit_kmeans(available, n_clusters=n_clusters)
+    if not result.labels.empty:
+        result.labels = result.labels.astype("int64")
 
     # Add the cluster labels back to the original DataFrame
     clustered = batting_df.copy()
@@ -141,6 +153,8 @@ def cluster_bowlers(bowling_df: pd.DataFrame, n_clusters: int = 4) -> Tuple[pd.D
     feature_cols = ["bowling_economy", "bowling_strike_rate", "wickets_per_match", "phase_efficacy", "bowling_index"]
     available = bowling_df.reindex(columns=feature_cols).fillna(0)
     result = _fit_kmeans(available, n_clusters=n_clusters)
+    if not result.labels.empty:
+        result.labels = result.labels.astype("int64")
 
     # Add the cluster labels back to the original DataFrame
     clustered = bowling_df.copy()
@@ -165,6 +179,9 @@ def label_batter_clusters(result: ClusteringResult) -> Dict[int, str]:
         A dictionary mapping each cluster ID to its descriptive label (e.g., {0: "Power Hitter"}).
     """
     centroids = result.centroids.copy()
+    if centroids.empty:
+        return {}
+
     labels = {}
     # Iterate through each cluster's centroid to determine its defining characteristic
     for cluster_id, centroid in centroids.iterrows():
@@ -196,6 +213,9 @@ def label_bowler_clusters(result: ClusteringResult) -> Dict[int, str]:
         A dictionary mapping each cluster ID to its descriptive label (e.g., {0: "Strike Bowler"}).
     """
     centroids = result.centroids.copy()
+    if centroids.empty:
+        return {}
+
     labels = {}
     # Iterate through each cluster's centroid to determine its defining characteristic
     for cluster_id, centroid in centroids.iterrows():

@@ -113,7 +113,10 @@ def run_pipeline(data_path: str) -> Dict[str, Any]:
     ]]
     batter_clustered, batter_result = cluster_batters(batter_base)
     batter_labels = label_batter_clusters(batter_result)
-    batter_clustered["batter_role"] = batter_clustered["batter_cluster"].map(batter_labels)
+    if batter_clustered.empty:
+        batter_clustered["batter_role"] = pd.Series(dtype="object", index=batter_clustered.index)
+    else:
+        batter_clustered["batter_role"] = batter_clustered["batter_cluster"].map(batter_labels)
 
     bowler_base = bowling_with_index[[
         "player",
@@ -127,7 +130,10 @@ def run_pipeline(data_path: str) -> Dict[str, Any]:
     ]]
     bowler_clustered, bowler_result = cluster_bowlers(bowler_base)
     bowler_labels = label_bowler_clusters(bowler_result)
-    bowler_clustered["bowler_role"] = bowler_clustered["bowler_cluster"].map(bowler_labels)
+    if bowler_clustered.empty:
+        bowler_clustered["bowler_role"] = pd.Series(dtype="object", index=bowler_clustered.index)
+    else:
+        bowler_clustered["bowler_role"] = bowler_clustered["bowler_cluster"].map(bowler_labels)
 
     batter_mode = (
         batter_clustered.groupby("player")["batter_cluster"]
@@ -317,40 +323,45 @@ def render_cluster_section(outputs: Dict[str, Any]) -> None:
     batter_clusters = outputs["batter_clustered"].copy()
     bowler_clusters = outputs["bowler_clustered"].copy()
 
-    batter_clusters["team"] = batter_clusters["team"].map(_format_team_name)
-    bowler_clusters["team"] = bowler_clusters["team"].map(_format_team_name)
-
-    batter_chart = (
-        alt.Chart(batter_clusters)
-        .mark_circle(size=60, opacity=0.7)
-        .encode(
-            x=alt.X("batting_strike_rate", title="Strike Rate"),
-            y=alt.Y("boundary_percentage", title="Boundary %"),
-            color=alt.Color("batter_role", title="Archetype"),
-            tooltip=["player", "team", "batting_average", "batting_index"],
-        )
-        .interactive()
-        .properties(title="Batter Archetypes", height=400)
-    )
-
-    bowler_chart = (
-        alt.Chart(bowler_clusters)
-        .mark_circle(size=60, opacity=0.7)
-        .encode(
-            x=alt.X("bowling_economy", title="Economy"),
-            y=alt.Y("bowling_strike_rate", title="Strike Rate"),
-            color=alt.Color("bowler_role", title="Archetype"),
-            tooltip=["player", "team", "wickets_per_match", "phase_efficacy"],
-        )
-        .interactive()
-        .properties(title="Bowler Archetypes", height=400)
-    )
-
     col1, col2 = st.columns(2)
+
     with col1:
-        st.altair_chart(batter_chart, use_container_width=True)
+        if batter_clusters.empty:
+            st.info("No batter data available for clustering.")
+        else:
+            batter_clusters["team"] = batter_clusters["team"].map(_format_team_name)
+            batter_chart = (
+                alt.Chart(batter_clusters)
+                .mark_circle(size=60, opacity=0.7)
+                .encode(
+                    x=alt.X("batting_strike_rate", title="Strike Rate"),
+                    y=alt.Y("boundary_percentage", title="Boundary %"),
+                    color=alt.Color("batter_role", title="Archetype"),
+                    tooltip=["player", "team", "batting_average", "batting_index"],
+                )
+                .interactive()
+                .properties(title="Batter Archetypes", height=400)
+            )
+            st.altair_chart(batter_chart, use_container_width=True)
+
     with col2:
-        st.altair_chart(bowler_chart, use_container_width=True)
+        if bowler_clusters.empty:
+            st.info("No bowler data available for clustering.")
+        else:
+            bowler_clusters["team"] = bowler_clusters["team"].map(_format_team_name)
+            bowler_chart = (
+                alt.Chart(bowler_clusters)
+                .mark_circle(size=60, opacity=0.7)
+                .encode(
+                    x=alt.X("bowling_economy", title="Economy"),
+                    y=alt.Y("bowling_strike_rate", title="Strike Rate"),
+                    color=alt.Color("bowler_role", title="Archetype"),
+                    tooltip=["player", "team", "wickets_per_match", "phase_efficacy"],
+                )
+                .interactive()
+                .properties(title="Bowler Archetypes", height=400)
+            )
+            st.altair_chart(bowler_chart, use_container_width=True)
 
 
 def render_model_diagnostics(outputs: Dict[str, Any]) -> None:
