@@ -305,7 +305,19 @@ def main(data_path: str, random_seed: int = 42) -> Dict[str, object]:
     player_ratings = aggregate_player_ratings(model_df, shap_weights)
 
     # Step 8: Cluster batters into archetypes
-    batter_base = batting_metrics[[
+    # Add batting_index from features to batting_metrics for clustering
+    batting_with_index = batting_metrics.merge(
+        features[["match_id", "player", "batting_index"]],
+        on=["match_id", "player"],
+        how="left"
+    )
+    # Fill any missing batting_index values with 0
+    if "batting_index" not in batting_with_index.columns:
+        batting_with_index["batting_index"] = 0.0
+    else:
+        batting_with_index["batting_index"] = batting_with_index["batting_index"].fillna(0.0)
+    
+    batter_base = batting_with_index[[
         "player", "team", "balls_faced", "batting_strike_rate",
         "batting_average", "boundary_percentage", "dot_percentage", "batting_index",
     ]]
@@ -317,7 +329,19 @@ def main(data_path: str, random_seed: int = 42) -> Dict[str, object]:
         batter_clustered["batter_role"] = batter_clustered["batter_cluster"].map(batter_labels)
 
     # Step 9: Cluster bowlers into archetypes
-    bowler_base = bowling_metrics[[
+    # Add bowling_index from features to bowling_metrics for clustering
+    bowling_with_index = bowling_metrics.merge(
+        features[["match_id", "player", "bowling_index"]],
+        on=["match_id", "player"],
+        how="left"
+    )
+    # Fill any missing bowling_index values with 0
+    if "bowling_index" not in bowling_with_index.columns:
+        bowling_with_index["bowling_index"] = 0.0
+    else:
+        bowling_with_index["bowling_index"] = bowling_with_index["bowling_index"].fillna(0.0)
+    
+    bowler_base = bowling_with_index[[
         "player", "team", "balls_bowled", "bowling_economy",
         "bowling_strike_rate", "wickets_per_match", "phase_efficacy", "bowling_index",
     ]]
@@ -336,12 +360,48 @@ def main(data_path: str, random_seed: int = 42) -> Dict[str, object]:
         lambda s: s.mode().iloc[0] if not s.mode().empty else s.iloc[0]
     )
 
+    # Aggregate volume metrics from features which has all the data including season
+    # Use only columns that exist in the dataframes
     volume_group_cols = [col for col in ["player", "team", "season"] if col in features.columns]
-    volume_metric_cols = [col for col in ["balls_faced", "balls_bowled"] if col in features.columns]
-    volume_frame = features[volume_group_cols + volume_metric_cols].copy()
-    if volume_metric_cols:
-        volume_frame[volume_metric_cols] = volume_frame[volume_metric_cols].fillna(0)
-    volume_stats = volume_frame.groupby(volume_group_cols, as_index=False).sum()
+    
+    # Try to get balls_faced and balls_bowled from features
+    # Features may have suffixed columns from merge, so check for those too
+    balls_faced_col = None
+    balls_bowled_col = None
+    
+    if "balls_faced" in features.columns:
+        balls_faced_col = "balls_faced"
+    elif "balls_faced_bat" in features.columns:
+        balls_faced_col = "balls_faced_bat"
+    
+    if "balls_bowled" in features.columns:
+        balls_bowled_col = "balls_bowled"
+    elif "balls_bowled_bowl" in features.columns:
+        balls_bowled_col = "balls_bowled_bowl"
+    
+    # Build volume stats
+    if volume_group_cols and (balls_faced_col or balls_bowled_col):
+        volume_cols = volume_group_cols.copy()
+        if balls_faced_col:
+            volume_cols.append(balls_faced_col)
+        if balls_bowled_col and balls_bowled_col not in volume_cols:
+            volume_cols.append(balls_bowled_col)
+        
+        volume_frame = features[volume_cols].copy()
+        if balls_faced_col:
+            volume_frame[balls_faced_col] = volume_frame[balls_faced_col].fillna(0)
+        if balls_bowled_col:
+            volume_frame[balls_bowled_col] = volume_frame[balls_bowled_col].fillna(0)
+        
+        volume_stats = volume_frame.groupby(volume_group_cols, as_index=False).sum()
+        
+        # Rename columns if they were suffixed
+        if balls_faced_col and balls_faced_col != "balls_faced":
+            volume_stats = volume_stats.rename(columns={balls_faced_col: "balls_faced"})
+        if balls_bowled_col and balls_bowled_col != "balls_bowled":
+            volume_stats = volume_stats.rename(columns={balls_bowled_col: "balls_bowled"})
+    else:
+        volume_stats = pd.DataFrame()
 
     player_profiles = player_ratings.merge(
         volume_stats, on=volume_group_cols, how="left"
@@ -352,8 +412,10 @@ def main(data_path: str, random_seed: int = 42) -> Dict[str, object]:
     )
 
     # Clean up and finalize player profiles
-    player_profiles["balls_faced"] = player_profiles["balls_faced"].fillna(0)
-    player_profiles["balls_bowled"] = player_profiles["balls_bowled"].fillna(0)
+    if "balls_faced" in player_profiles.columns:
+        player_profiles["balls_faced"] = player_profiles["balls_faced"].fillna(0)
+    if "balls_bowled" in player_profiles.columns:
+        player_profiles["balls_bowled"] = player_profiles["balls_bowled"].fillna(0)
     player_profiles = player_profiles.sort_values("impact_rating", ascending=False).reset_index(drop=True)
 
     # Assign roles based on clusters

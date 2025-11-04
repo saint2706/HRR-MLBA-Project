@@ -16,10 +16,63 @@ The key functions in this module are:
 """
 from __future__ import annotations
 
+import logging
 from typing import Tuple
 
 import pandas as pd
 import shap
+
+
+logger = logging.getLogger(__name__)
+
+
+def _patch_xgboost_base_score():
+    """
+    Monkey-patch SHAP's XGBTreeModelLoader to handle XGBoost 3.x base_score format.
+    
+    XGBoost 3.x stores base_score as '[value]' (e.g., '[4.7761565E-1]'), but SHAP's
+    TreeExplainer tries to convert it directly to float, which fails. This patch
+    wraps the built-in float() function to handle bracketed values.
+    """
+    try:
+        from shap.explainers import _tree
+        import builtins
+        
+        # Store the original __init__ method and original float
+        original_init = _tree.XGBTreeModelLoader.__init__
+        original_float = builtins.float
+        
+        def patched_init(self, xgb_model):
+            """Patched __init__ that handles bracketed base_score values."""
+            # Temporarily replace the built-in float function
+            def safe_float(value):
+                """float() wrapper that handles bracketed XGBoost values."""
+                if isinstance(value, str) and value.startswith('[') and value.endswith(']'):
+                    # Remove brackets: '[4.7761565E-1]' -> '4.7761565E-1'
+                    value = value[1:-1]
+                return original_float(value)
+            
+            # Temporarily replace float in builtins
+            builtins.float = safe_float
+            
+            try:
+                # Call the original __init__
+                original_init(self, xgb_model)
+            finally:
+                # Restore the original float function
+                builtins.float = original_float
+        
+        # Apply the patch
+        _tree.XGBTreeModelLoader.__init__ = patched_init
+        return True
+    except Exception as e:
+        # If patching fails, log it but don't crash
+        logger.warning("Failed to patch SHAP XGBTreeModelLoader: %s", e)
+        return False
+
+
+# Apply the patch when the module is imported
+_patch_xgboost_base_score()
 
 
 def compute_shap_values(
@@ -64,6 +117,7 @@ def compute_shap_values(
         X_sample = X
 
     # Initialize the TreeExplainer, which is optimized for tree-based models
+    # The monkey-patch applied at module import handles XGBoost 3.x compatibility
     explainer = shap.TreeExplainer(model)
     # Calculate the SHAP values for the sampled data
     shap_values = explainer.shap_values(X_sample)
