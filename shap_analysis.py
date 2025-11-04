@@ -16,30 +16,14 @@ The key functions in this module are:
 """
 from __future__ import annotations
 
-import re
+import logging
 from typing import Tuple
 
 import pandas as pd
 import shap
 
 
-def _safe_float_conversion(value):
-    """
-    Safely convert a string to float, handling XGBoost 3.x bracketed format.
-    
-    XGBoost 3.x stores some numeric values in brackets, e.g., '[4.7761565E-1]'.
-    This function strips the brackets before converting to float.
-    
-    Args:
-        value: The value to convert (string or numeric).
-    
-    Returns:
-        The float value.
-    """
-    if isinstance(value, str):
-        # Remove brackets if present: '[4.7761565E-1]' -> '4.7761565E-1'
-        value = value.strip('[]')
-    return float(value)
+logger = logging.getLogger(__name__)
 
 
 def _patch_xgboost_base_score():
@@ -83,7 +67,7 @@ def _patch_xgboost_base_score():
         return True
     except Exception as e:
         # If patching fails, log it but don't crash
-        print(f"Warning: Failed to patch SHAP XGBTreeModelLoader: {e}")
+        logger.warning("Failed to patch SHAP XGBTreeModelLoader: %s", e)
         return False
 
 

@@ -13,8 +13,7 @@ from shap_analysis import compute_shap_values
 
 
 def test_shap_with_xgboost_base_score_format():
-    """
-    Test that SHAP can compute values with XGBoost 3.x models.
+    """Test that SHAP can compute values with XGBoost 3.x models.
     
     XGBoost 3.x stores base_score as '[value]' (e.g., '[4.7761565E-1]'),
     which causes SHAP to fail without the patch. This test verifies the fix works.
