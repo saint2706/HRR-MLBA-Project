@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
 import altair as alt
+import numpy as np
 import pandas as pd
 import streamlit as st
 from xgboost import XGBClassifier
@@ -114,13 +115,16 @@ def load_pretrained_model(model_df: pd.DataFrame, feature_cols: list[str]) -> Op
         # Load metadata if available
         metrics = {}
         if metadata_path and metadata_path.exists():
-            metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
-            metrics = metadata.get("metrics", {})
+            try:
+                metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+                metrics = metadata.get("metrics", {})
+            except json.JSONDecodeError as json_err:
+                st.warning(f"⚠️ Metadata file has invalid JSON: {json_err}. Using model without metadata.")
 
         # Create mock train/test splits for compatibility
         # We just need the model for predictions, not for retraining
         X = model_df[feature_cols]
-        y = model_df.get("team_won", pd.Series([0] * len(model_df)))
+        y = model_df.get("team_won", pd.Series([0] * len(model_df), index=model_df.index))
 
         # Create minimal artifacts structure
         artifacts = ModelArtifacts(
@@ -131,8 +135,8 @@ def load_pretrained_model(model_df: pd.DataFrame, feature_cols: list[str]) -> Op
             y_train=y,
             y_test=y.iloc[:0],  # Empty test set
             metrics=metrics,
-            predictions=pd.Series([], dtype=int).values,
-            probabilities=pd.Series([], dtype=float).values,
+            predictions=np.array([], dtype=int),
+            probabilities=np.array([], dtype=float),
         )
 
         st.info(f"✅ Loaded pre-trained model from {model_path.name}")
