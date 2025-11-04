@@ -156,6 +156,14 @@ streamlit run streamlit_app.py
 
 By default the app expects the Kaggle dataset at `IPL.csv` in the repository root. You can supply an alternative path using the sidebar configuration panel, which will trigger the cached pipeline to refresh automatically.
 
+**Model Loading**: The dashboard now intelligently searches for pre-trained models to speed up initialization:
+- Automatically searches for `best-model*.json` or `best_model*.json` files in the repository
+- Loads the pre-trained XGBoost model and metadata if found
+- Falls back to training from scratch if no model exists
+- Displays status messages indicating whether a pre-trained model was loaded or training occurred
+
+This feature significantly reduces startup time when a trained model is available, making iterative analysis and exploration much faster.
+
 ### Command-Line Pipeline
 
 To run the full end-to-end analysis pipeline, execute the `main.py` script from the root directory:
