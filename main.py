@@ -238,7 +238,7 @@ def ensure_dataset_available(data_path: str) -> None:
     )
 
 
-def main(data_path: str) -> Dict[str, object]:
+def main(data_path: str, random_seed: int = 42) -> Dict[str, object]:
     """
     Executes the end-to-end IPL player analysis pipeline.
 
@@ -249,6 +249,7 @@ def main(data_path: str) -> Dict[str, object]:
 
     Args:
         data_path: The file path to the raw IPL ball-by-ball dataset (CSV format).
+        random_seed: Random seed for reproducibility (default: 42).
 
     Returns:
         A dictionary containing the key outputs of the pipeline, such as:
@@ -260,6 +261,14 @@ def main(data_path: str) -> Dict[str, object]:
         - "plots": A dictionary of file paths for the generated visualizations.
         - "cluster_labels": A dictionary mapping cluster IDs to their descriptive names.
     """
+    # Set global seed for reproducibility
+    try:
+        from src.common.seeding import set_global_seed
+        set_global_seed(random_seed)
+        logger.info("Set global random seed to %d", random_seed)
+    except ImportError:
+        logger.warning("Seeding module not available; reproducibility may be affected")
+
     ensure_dataset_available(data_path)
 
     logger.info("Starting pipeline with data path: %s", data_path)
@@ -430,10 +439,16 @@ def cli() -> None:
         default=None,
         help="Optional path to export summary JSON",
     )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=42,
+        help="Random seed for reproducibility (default: 42)",
+    )
     args = parser.parse_args()
 
     # Execute the main pipeline
-    outputs = main(args.data_path)
+    outputs = main(args.data_path, random_seed=args.seed)
 
     # Export results to JSON if a path is provided
     if args.export_json:

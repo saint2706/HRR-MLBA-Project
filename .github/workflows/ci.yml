@@ -1,0 +1,189 @@
+name: CI - Lint, Test, and Build
+
+on:
+  push:
+    branches: [main, develop, copilot/**]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  lint:
+    name: Lint Code
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install linting dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install black isort flake8
+
+      - name: Run black
+        run: black --check --line-length 120 .
+
+      - name: Run isort
+        run: isort --check-only --profile black --line-length 120 .
+
+      - name: Run flake8
+        run: flake8 --max-line-length 120 --extend-ignore E203,W503 --exclude .git,__pycache__,venv,env,.eggs,build,dist,outputs,reports .
+
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.9", "3.10", "3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-cov
+
+      - name: Run tests with coverage
+        run: |
+          pytest tests/ -v --cov=. --cov-report=xml --cov-report=term
+
+      - name: Upload coverage to Codecov
+        if: matrix.python-version == '3.11'
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./coverage.xml
+          fail_ci_if_error: false
+
+  smoke-test:
+    name: Smoke Test - Reproduce Pipeline
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Create sample data
+        run: |
+          # Create a tiny sample dataset for smoke testing
+          python -c "
+import pandas as pd
+import numpy as np
+
+# Create minimal synthetic data
+np.random.seed(42)
+n = 1000
+
+data = pd.DataFrame({
+    'match_id': np.repeat(range(20), 50),
+    'season': np.repeat([2018, 2019, 2020], [500, 300, 200]),
+    'date': pd.date_range('2018-01-01', periods=20).repeat(50),
+    'venue': np.random.choice(['Stadium A', 'Stadium B'], n),
+    'city': np.random.choice(['City A', 'City B'], n),
+    'innings': np.tile([1, 2], n//2),
+    'over': np.tile(range(1, 21), n//20),
+    'ball': np.tile(range(1, 7), n//6)[:n],
+    'batter': np.random.choice(['Player ' + str(i) for i in range(1, 21)], n),
+    'bowler': np.random.choice(['Player ' + str(i) for i in range(21, 41)], n),
+    'batting_team': np.random.choice(['Team A', 'Team B'], n),
+    'bowling_team': np.random.choice(['Team A', 'Team B'], n),
+    'runs_batter': np.random.choice([0, 1, 2, 4, 6], n, p=[0.4, 0.3, 0.15, 0.1, 0.05]),
+    'runs_total': np.random.choice([0, 1, 2, 4, 6], n, p=[0.4, 0.3, 0.15, 0.1, 0.05]),
+    'is_wicket': np.random.choice([0, 1], n, p=[0.95, 0.05]),
+    'winner': np.repeat(np.random.choice(['Team A', 'Team B'], 20), 50),
+})
+
+data.to_csv('IPL_sample.csv', index=False)
+print('Created sample dataset with', len(data), 'rows')
+"
+
+      - name: Test imports
+        run: |
+          python -c "
+from splits.time_splits import create_time_splits
+from src.common.seeding import set_global_seed
+from src.common.calibration import calibrate_probabilities
+from src.common.metrics import compute_metrics_with_ci
+from src.common.baselines import VenueHomeBaseline
+print('All imports successful')
+"
+
+      - name: Verify Makefile targets exist
+        run: |
+          make help
+          # Check that key targets are defined
+          grep -q "setup:" Makefile
+          grep -q "test:" Makefile
+          grep -q "reproduce:" Makefile
+
+      - name: Check documentation exists
+        run: |
+          test -f docs/DATA_CARD.md
+          test -f docs/FEATURE_TIMING_AUDIT.md
+          test -f docs/BUSINESS_KPIS.md
+          test -f configs/policy.yaml
+
+  check-structure:
+    name: Verify Project Structure
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check required files exist
+        run: |
+          # Core files
+          test -f pyproject.toml
+          test -f Makefile
+          test -f .pre-commit-config.yaml
+          test -f .gitignore
+
+          # Source structure
+          test -d src/common
+          test -f src/common/seeding.py
+          test -f src/common/calibration.py
+          test -f src/common/metrics.py
+          test -f src/common/baselines.py
+
+          # Analysis modules
+          test -d analysis
+          test -f analysis/error_slices.py
+          test -f analysis/failures.py
+
+          # Splits
+          test -d splits
+          test -f splits/time_splits.py
+
+          # CLI
+          test -d cli
+          test -f cli/score_oos.py
+          test -f cli/calibrate.py
+
+          # Configs
+          test -d configs
+          test -f configs/policy.yaml
+
+          # Documentation
+          test -d docs
+          test -f docs/DATA_CARD.md
+          test -f docs/FEATURE_TIMING_AUDIT.md
+          test -f docs/BUSINESS_KPIS.md
+
+          echo "All required files and directories exist ✓"
