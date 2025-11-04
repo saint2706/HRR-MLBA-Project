@@ -1,0 +1,139 @@
+# Policy Configuration for Probability-Based Decision Making
+# This file maps win probability ranges to recommended actions for different use cases
+
+# Use Case: Fantasy Cricket Picks
+fantasy_picks:
+  description: "Recommendations for daily fantasy cricket team selection"
+  probability_bands:
+    - range: [0.00, 0.20]
+      label: "High Risk Pick"
+      action: "Consider only for contrarian strategy"
+      color: "#d32f2f"  # Red
+      risk_level: "very_high"
+      expected_value: "High reward if successful, but low probability"
+
+    - range: [0.20, 0.40]
+      label: "Value Pick"
+      action: "Good risk/reward ratio for differentiation"
+      color: "#f57c00"  # Orange
+      risk_level: "high"
+      expected_value: "Above-average returns potential"
+
+    - range: [0.40, 0.60]
+      label: "Toss-up"
+      action: "Use secondary factors (venue, form) as tiebreaker"
+      color: "#fbc02d"  # Yellow
+      risk_level: "medium"
+      expected_value: "Neutral expected value"
+
+    - range: [0.60, 0.80]
+      label: "Safe Pick"
+      action: "Recommended for stable lineup"
+      color: "#689f38"  # Light Green
+      risk_level: "low"
+      expected_value: "Reliable expected returns"
+
+    - range: [0.80, 1.00]
+      label: "Very Safe Pick"
+      action: "Core selection for low-variance strategy"
+      color: "#388e3c"  # Dark Green
+      risk_level: "very_low"
+      expected_value: "Highly predictable outcome"
+
+# Use Case: Broadcast Graphics
+broadcast_graphics:
+  description: "Win probability display for live broadcast"
+  probability_bands:
+    - range: [0.00, 0.30]
+      label: "Underdog"
+      display_text: "Major underdog"
+      color: "#e57373"
+
+    - range: [0.30, 0.45]
+      label: "Slight Underdog"
+      display_text: "Slight disadvantage"
+      color: "#ffb74d"
+
+    - range: [0.45, 0.55]
+      label: "Even Match"
+      display_text: "Evenly matched"
+      color: "#fff176"
+
+    - range: [0.55, 0.70]
+      label: "Favorite"
+      display_text: "Slight advantage"
+      color: "#aed581"
+
+    - range: [0.70, 1.00]
+      label: "Strong Favorite"
+      display_text: "Strong favorite"
+      color: "#81c784"
+
+# Use Case: Team Strategy Planning
+team_strategy:
+  description: "Match preparation and tactical planning"
+  probability_bands:
+    - range: [0.00, 0.40]
+      label: "Aggressive Strategy"
+      action: "High-risk tactics, surprise element"
+      recommendation: "Unconventional team selection, attack-focused approach"
+
+    - range: [0.40, 0.60]
+      label: "Balanced Strategy"
+      action: "Standard tactics, adapt to conditions"
+      recommendation: "Balanced team, maintain flexibility"
+
+    - range: [0.60, 1.00]
+      label: "Conservative Strategy"
+      action: "Play to strengths, minimize risks"
+      recommendation: "Established XI, proven tactics"
+
+# Use Case: Value Betting / Market Analysis
+market_analysis:
+  description: "Identifying value in betting markets"
+  probability_bands:
+    - range: [0.00, 0.35]
+      label: "Potential Value (if market underestimates)"
+      action: "Check if market odds exceed model probability"
+      threshold_note: "Look for market odds > 2.85"
+
+    - range: [0.35, 0.65]
+      label: "Fair Value"
+      action: "Market likely efficient in this range"
+      threshold_note: "Avoid unless strong conviction"
+
+    - range: [0.65, 1.00]
+      label: "Potential Value (if market overestimates underdog)"
+      action: "Look for overvalued underdog opportunities"
+      threshold_note: "Reverse value on opponent"
+
+# Threshold Configuration
+thresholds:
+  upset_detection: 0.40  # Teams below this probability are considered underdogs
+  high_confidence: 0.75  # Predictions above this are "high confidence"
+  low_confidence: 0.25   # Predictions below this are "low confidence"
+  recalibration_trigger: 0.08  # ECE above this triggers recalibration
+
+# Alert Configuration
+alerts:
+  calibration_drift:
+    metric: "expected_calibration_error"
+    threshold: 0.08
+    action: "Trigger model recalibration"
+
+  poor_discrimination:
+    metric: "roc_auc"
+    threshold: 0.65
+    action: "Review model and retrain if needed"
+
+  accuracy_degradation:
+    metric: "mean_absolute_error"
+    threshold: 0.10
+    action: "Investigate feature drift or data quality issues"
+
+# Display Configuration
+display:
+  probability_format: "percentage"  # "percentage" or "decimal"
+  decimal_places: 1
+  show_confidence_intervals: true
+  confidence_level: 0.95
