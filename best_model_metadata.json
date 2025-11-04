@@ -1,0 +1,20 @@
+{
+  "feature_columns": [
+    "batting_strike_rate",
+    "batting_average",
+    "boundary_percentage",
+    "dot_percentage",
+    "bowling_economy",
+    "bowling_strike_rate",
+    "wickets_per_match",
+    "phase_efficacy",
+    "batting_index",
+    "bowling_index",
+    "overall_index",
+    "overs_bowled"
+  ],
+  "metrics": {
+    "accuracy": 0.6524780175859313,
+    "roc_auc": 0.7042924644575556
+  }
+}
